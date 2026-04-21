@@ -2780,8 +2780,11 @@ function AIAssistantPage() {
     setInput('');
     setLoading(true);
 
+    const API_BASE = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
+    const GIGACHAT_URL = API_BASE ? `${API_BASE}/api/gigachat` : '/api/gigachat';
+    
     try {
-      const response = await fetch('/api/gigachat', {
+     const response = await fetch(GIGACHAT_URL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
