@@ -25,7 +25,10 @@ function loadEnvFile(filePath) {
     if (!key || process.env[key] !== undefined) continue;
 
     let value = trimmed.slice(equalIndex + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
       value = value.slice(1, -1);
     }
 
@@ -37,42 +40,38 @@ loadEnvFile(resolve(ROOT_DIR, '.env.local'));
 loadEnvFile(resolve(ROOT_DIR, '.env'));
 
 const PORT = Number(process.env.PORT || process.env.GIGACHAT_PORT || config.port || 8787);
-const AUTH_URL = process.env.GIGACHAT_AUTH_URL || config.authUrl || 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
-const API_BASE_URL = process.env.GIGACHAT_API_BASE_URL || config.apiBaseUrl || 'https://gigachat.devices.sberbank.ru/api/v1';
+const AUTH_URL =
+  process.env.GIGACHAT_AUTH_URL ||
+  config.authUrl ||
+  'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
+
+const API_BASE_URL =
+  process.env.GIGACHAT_API_BASE_URL ||
+  config.apiBaseUrl ||
+  'https://gigachat.devices.sberbank.ru/api/v1';
+
 const AUTH_KEY = process.env.GIGACHAT_AUTH_KEY || config.authKey || '';
 const SCOPE = process.env.GIGACHAT_SCOPE || config.scope || 'GIGACHAT_API_PERS';
 const DEFAULT_MODEL = process.env.GIGACHAT_MODEL || config.model || 'GigaChat';
 
-const EXTRA_CA_PATH = process.env.GIGACHAT_CA_PATH || resolve(ROOT_DIR, 'certs', 'kaspersky-root.pem');
 const ALLOW_INSECURE_DEV = process.env.GIGACHAT_ALLOW_INSECURE_DEV === '1';
 
-let extraCa = null;
-if (fs.existsSync(EXTRA_CA_PATH)) {
-  extraCa = fs.readFileSync(EXTRA_CA_PATH, 'utf8');
+if (ALLOW_INSECURE_DEV) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 }
 
-let fetchImpl = globalThis.fetch?.bind(globalThis);
-let dispatcher;
+const fetchImpl = globalThis.fetch?.bind(globalThis);
 
 if (!fetchImpl) {
   throw new Error('Global fetch is not available in this Node.js runtime.');
 }
 
-if (extraCa || ALLOW_INSECURE_DEV) {
-  const { Agent, fetch: undiciFetch } = await import('undici');
-  dispatcher = new Agent({
-    connect: {
-      ...(extraCa ? { ca: extraCa } : {}),
-      ...(ALLOW_INSECURE_DEV ? { rejectUnauthorized: false } : {}),
-    },
-  });
-  fetchImpl = undiciFetch;
-}
-
 let tokenCache = { accessToken: '', expiresAt: 0 };
 
 function json(res, status, payload) {
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8' });
+  res.writeHead(status, {
+    'Content-Type': 'application/json; charset=utf-8',
+  });
   res.end(JSON.stringify(payload));
 }
 
@@ -87,11 +86,7 @@ function serializeError(error) {
 }
 
 async function fetchJson(url, options) {
-  const requestOptions = { ...options };
-  if (dispatcher) {
-    requestOptions.dispatcher = dispatcher;
-  }
-  const response = await fetchImpl(url, requestOptions);
+  const response = await fetchImpl(url, options);
   const payload = await response.json().catch(() => ({}));
   return { response, payload };
 }
@@ -103,7 +98,9 @@ async function getAccessToken() {
   }
 
   if (!AUTH_KEY) {
-    throw new Error('Не найден GIGACHAT_AUTH_KEY. Добавьте ключ в переменные окружения хостинга или локальный env-файл.');
+    throw new Error(
+      'Не найден GIGACHAT_AUTH_KEY. Добавьте ключ в переменные окружения хостинга или локальный env-файл.'
+    );
   }
 
   console.log('[oauth] requesting token:', AUTH_URL);
@@ -122,7 +119,11 @@ async function getAccessToken() {
   console.log('[oauth] status:', response.status);
 
   if (!response.ok || !payload.access_token) {
-    throw new Error(payload.error_description || payload.error || 'Не удалось получить access token GigaChat. Проверьте GIGACHAT_AUTH_KEY.');
+    throw new Error(
+      payload.error_description ||
+        payload.error ||
+        'Не удалось получить access token GigaChat. Проверьте GIGACHAT_AUTH_KEY.'
+    );
   }
 
   tokenCache = {
@@ -150,14 +151,17 @@ createServer(async (req, res) => {
 
   if (req.method === 'POST' && req.url === '/api/gigachat') {
     console.log('[request] POST /api/gigachat');
+
     try {
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
+
       const raw = Buffer.concat(chunks).toString('utf8');
       const parsed = JSON.parse(raw || '{}');
       const accessToken = await getAccessToken();
 
       console.log('[chat] requesting completion:', `${API_BASE_URL}/chat/completions`);
+
       const { response, payload } = await fetchJson(`${API_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -190,12 +194,14 @@ createServer(async (req, res) => {
     } catch (error) {
       const diagnostic = serializeError(error);
       console.error('[proxy:error]', diagnostic);
+
       json(res, 500, {
         error: diagnostic.message || 'Внутренняя ошибка сервера.',
         code: diagnostic.code,
         cause: diagnostic.cause,
       });
     }
+
     return;
   }
 
@@ -205,6 +211,5 @@ createServer(async (req, res) => {
   console.log(`GigaChat proxy: http://localhost:${PORT}`);
   console.log(`.env.local path: ${envLocalPath}`);
   console.log(`GIGACHAT_AUTH_KEY loaded: ${AUTH_KEY ? 'yes' : 'no'}`);
-  console.log(`extra CA loaded: ${extraCa ? EXTRA_CA_PATH : 'no'}`);
   console.log(`insecure dev TLS: ${ALLOW_INSECURE_DEV ? 'on' : 'off'}`);
 });
