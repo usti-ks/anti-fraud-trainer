@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 560" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#071020"/>
+      <stop offset="55%" stop-color="#0C1530"/>
+      <stop offset="100%" stop-color="#121C3C"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(506 132) rotate(90) scale(220 300)">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="24%" stop-color="#DDE4FF" stop-opacity="0.86"/>
+      <stop offset="58%" stop-color="#6F7FFF" stop-opacity="0.44"/>
+      <stop offset="100%" stop-color="#6F7FFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#87A6FF"/>
+      <stop offset="100%" stop-color="#6678FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="560" rx="36" fill="url(#bg)"/>
+  <ellipse cx="506" cy="148" rx="248" ry="172" fill="url(#glow)"/>
+  <path d="M86 432H714" stroke="rgba(255,255,255,0.05)"/>
+  <g>
+    <rect x="86" y="116" width="280" height="252" rx="30" fill="rgba(10,15,32,0.92)" stroke="rgba(111,127,255,0.28)"/>
+    <rect x="118" y="150" width="216" height="34" rx="17" fill="rgba(255,255,255,0.07)"/>
+    <rect x="118" y="206" width="216" height="124" rx="24" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.08)"/>
+    <circle cx="156" cy="244" r="18" fill="rgba(111,127,255,0.18)"/>
+    <rect x="186" y="230" width="112" height="16" rx="8" fill="rgba(255,255,255,0.14)"/>
+    <rect x="186" y="258" width="88" height="12" rx="6" fill="rgba(255,255,255,0.08)"/>
+    <rect x="118" y="342" width="102" height="14" rx="7" fill="rgba(111,127,255,0.2)"/>
+    <rect x="230" y="342" width="68" height="14" rx="7" fill="rgba(255,255,255,0.08)"/>
+  </g>
+  <g>
+    <rect x="404" y="136" width="294" height="176" rx="28" fill="rgba(9,14,31,0.84)" stroke="rgba(111,127,255,0.22)"/>
+    <path d="M438 266c28-34 52-29 74-49 22-20 44-17 68-35 24-18 36-18 70-54" stroke="url(#accent)" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="438" cy="266" r="7" fill="#EEF2FF"/>
+    <circle cx="512" cy="217" r="7" fill="#CBD5FF"/>
+    <circle cx="580" cy="182" r="7" fill="#9FB0FF"/>
+    <circle cx="650" cy="129" r="7" fill="#6F7FFF"/>
+    <rect x="434" y="170" width="118" height="12" rx="6" fill="rgba(255,255,255,0.12)"/>
+    <rect x="434" y="194" width="84" height="10" rx="5" fill="rgba(255,255,255,0.08)"/>
+  </g>
+  <g>
+    <rect x="404" y="336" width="138" height="82" rx="24" fill="rgba(14,20,38,0.95)" stroke="rgba(255,255,255,0.1)"/>
+    <rect x="430" y="360" width="86" height="12" rx="6" fill="rgba(255,255,255,0.12)"/>
+    <rect x="430" y="384" width="54" height="10" rx="5" fill="rgba(111,127,255,0.2)"/>
+  </g>
+  <g>
+    <rect x="560" y="336" width="138" height="82" rx="24" fill="rgba(111,127,255,0.18)"/>
+    <path d="M606 362l15 30 30 6-21 21 5 31-29-15-28 15 5-31-21-21 30-6 14-30Z" fill="#EAEFFF" opacity="0.92"/>
+    <circle cx="652" cy="350" r="18" fill="rgba(255,124,134,0.16)"/>
+    <path d="M652 341v12" stroke="#FF8A95" stroke-width="5" stroke-linecap="round"/>
+    <circle cx="652" cy="358" r="3.2" fill="#FF8A95"/>
+  </g>
+</svg>
