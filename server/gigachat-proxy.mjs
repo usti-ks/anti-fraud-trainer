@@ -4,16 +4,37 @@ import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import fs from 'node:fs';
-import dotenv from 'dotenv';
-import { Agent, fetch as undiciFetch } from 'undici';
 import config from '../gigachat.config.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT_DIR = resolve(__dirname, '..');
 
-dotenv.config({ path: resolve(ROOT_DIR, '.env.local') });
-dotenv.config({ path: resolve(ROOT_DIR, '.env') });
+function loadEnvFile(filePath) {
+  if (!fs.existsSync(filePath)) return;
+
+  const content = fs.readFileSync(filePath, 'utf8');
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+
+    const equalIndex = trimmed.indexOf('=');
+    if (equalIndex === -1) continue;
+
+    const key = trimmed.slice(0, equalIndex).trim();
+    if (!key || process.env[key] !== undefined) continue;
+
+    let value = trimmed.slice(equalIndex + 1).trim();
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+      value = value.slice(1, -1);
+    }
+
+    process.env[key] = value;
+  }
+}
+
+loadEnvFile(resolve(ROOT_DIR, '.env.local'));
+loadEnvFile(resolve(ROOT_DIR, '.env'));
 
 const PORT = Number(process.env.PORT || process.env.GIGACHAT_PORT || config.port || 8787);
 const AUTH_URL = process.env.GIGACHAT_AUTH_URL || config.authUrl || 'https://ngw.devices.sberbank.ru:9443/api/v2/oauth';
@@ -22,26 +43,31 @@ const AUTH_KEY = process.env.GIGACHAT_AUTH_KEY || config.authKey || '';
 const SCOPE = process.env.GIGACHAT_SCOPE || config.scope || 'GIGACHAT_API_PERS';
 const DEFAULT_MODEL = process.env.GIGACHAT_MODEL || config.model || 'GigaChat';
 
-const EXTRA_CA_PATH =
-  process.env.GIGACHAT_CA_PATH ||
-  resolve(ROOT_DIR, 'certs', 'kaspersky-root.pem');
+const EXTRA_CA_PATH = process.env.GIGACHAT_CA_PATH || resolve(ROOT_DIR, 'certs', 'kaspersky-root.pem');
+const ALLOW_INSECURE_DEV = process.env.GIGACHAT_ALLOW_INSECURE_DEV === '1';
 
 let extraCa = null;
 if (fs.existsSync(EXTRA_CA_PATH)) {
   extraCa = fs.readFileSync(EXTRA_CA_PATH, 'utf8');
 }
 
-const ALLOW_INSECURE_DEV = process.env.GIGACHAT_ALLOW_INSECURE_DEV === '1';
+let fetchImpl = globalThis.fetch?.bind(globalThis);
+let dispatcher;
 
-const dispatcher =
-  extraCa || ALLOW_INSECURE_DEV
-    ? new Agent({
-        connect: {
-          ...(extraCa ? { ca: extraCa } : {}),
-          ...(ALLOW_INSECURE_DEV ? { rejectUnauthorized: false } : {}),
-        },
-      })
-    : undefined;
+if (!fetchImpl) {
+  throw new Error('Global fetch is not available in this Node.js runtime.');
+}
+
+if (extraCa || ALLOW_INSECURE_DEV) {
+  const { Agent, fetch: undiciFetch } = await import('undici');
+  dispatcher = new Agent({
+    connect: {
+      ...(extraCa ? { ca: extraCa } : {}),
+      ...(ALLOW_INSECURE_DEV ? { rejectUnauthorized: false } : {}),
+    },
+  });
+  fetchImpl = undiciFetch;
+}
 
 let tokenCache = { accessToken: '', expiresAt: 0 };
 
@@ -60,6 +86,16 @@ function serializeError(error) {
   };
 }
 
+async function fetchJson(url, options) {
+  const requestOptions = { ...options };
+  if (dispatcher) {
+    requestOptions.dispatcher = dispatcher;
+  }
+  const response = await fetchImpl(url, requestOptions);
+  const payload = await response.json().catch(() => ({}));
+  return { response, payload };
+}
+
 async function getAccessToken() {
   const now = Date.now();
   if (tokenCache.accessToken && tokenCache.expiresAt - now > 60_000) {
@@ -67,12 +103,12 @@ async function getAccessToken() {
   }
 
   if (!AUTH_KEY) {
-    throw new Error('Не найден GIGACHAT_AUTH_KEY. Добавьте ключ в .env.local или в переменные окружения хостинга.');
+    throw new Error('Не найден GIGACHAT_AUTH_KEY. Добавьте ключ в переменные окружения хостинга или локальный env-файл.');
   }
 
   console.log('[oauth] requesting token:', AUTH_URL);
 
-  const response = await undiciFetch(AUTH_URL, {
+  const { response, payload } = await fetchJson(AUTH_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
@@ -81,10 +117,8 @@ async function getAccessToken() {
       Authorization: `Basic ${AUTH_KEY}`,
     },
     body: new URLSearchParams({ scope: SCOPE }),
-    dispatcher,
   });
 
-  const payload = await response.json().catch(() => ({}));
   console.log('[oauth] status:', response.status);
 
   if (!response.ok || !payload.access_token) {
@@ -124,7 +158,7 @@ createServer(async (req, res) => {
       const accessToken = await getAccessToken();
 
       console.log('[chat] requesting completion:', `${API_BASE_URL}/chat/completions`);
-      const response = await undiciFetch(`${API_BASE_URL}/chat/completions`, {
+      const { response, payload } = await fetchJson(`${API_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -139,11 +173,9 @@ createServer(async (req, res) => {
           ],
           temperature: 0.3,
         }),
-        dispatcher,
       });
 
       console.log('[chat] status:', response.status);
-      const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         json(res, response.status, {
@@ -170,9 +202,9 @@ createServer(async (req, res) => {
   json(res, 404, { error: 'Not found' });
 }).listen(PORT, '0.0.0.0', () => {
   const envLocalPath = resolve(ROOT_DIR, '.env.local');
- console.log(`GigaChat proxy: http://localhost:${PORT}`);
-console.log(`.env.local path: ${envLocalPath}`);
-console.log(`GIGACHAT_AUTH_KEY loaded: ${AUTH_KEY ? 'yes' : 'no'}`);
-console.log(`extra CA loaded: ${extraCa ? EXTRA_CA_PATH : 'no'}`);
-console.log(`insecure dev TLS: ${ALLOW_INSECURE_DEV ? 'on' : 'off'}`);
+  console.log(`GigaChat proxy: http://localhost:${PORT}`);
+  console.log(`.env.local path: ${envLocalPath}`);
+  console.log(`GIGACHAT_AUTH_KEY loaded: ${AUTH_KEY ? 'yes' : 'no'}`);
+  console.log(`extra CA loaded: ${extraCa ? EXTRA_CA_PATH : 'no'}`);
+  console.log(`insecure dev TLS: ${ALLOW_INSECURE_DEV ? 'on' : 'off'}`);
 });
