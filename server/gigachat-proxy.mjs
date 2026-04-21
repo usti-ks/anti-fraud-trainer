@@ -168,7 +168,7 @@ createServer(async (req, res) => {
   }
 
   json(res, 404, { error: 'Not found' });
-}).listen(PORT, () => {
+}).listen(PORT, '0.0.0.0', () => {
   const envLocalPath = resolve(ROOT_DIR, '.env.local');
  console.log(`GigaChat proxy: http://localhost:${PORT}`);
 console.log(`.env.local path: ${envLocalPath}`);
